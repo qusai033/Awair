@@ -25,6 +25,9 @@ Notes:
     * The Awair server stops returning data if you make too many fetch requests in 1 
       minute. Therefore, this file waits 1 minute after collecting 10 hours' worth of data.
 */
+const express = require('express');
+const app = express();
+const port = 3000;
 
 
 const FROM = new Date('19 February 2024 14:00');
@@ -40,7 +43,8 @@ const fs = require('fs');
 csvRows = [];
 var indexFromTen = 1;
 
-
+// Assuming sensorData is an array where you push your sensor readings
+let sensorData = [];
 /*
     Converts JSON data into a 2D array and adds the <= 1 hour of data to csvRows.
 */
@@ -181,6 +185,7 @@ var minutes = Math.ceil((Math.abs(TO - FROM)/1000)/60);
 var numHours = Math.ceil(minutes/60);
 csvHeadermaker();
 
+
 /*
     Fetches and saves data between times FROM and TO as a CSV.
 */
@@ -204,4 +209,38 @@ function getNextData() {
 }
 getNextData()
 
+
+// Serve a web page with the Plotly graph
+app.get('/', (req, res) => {
+    // Generate HTML content with embedded Plotly graph
+    const plotlySrc = 'https://cdn.plot.ly/plotly-latest.min.js';
+    let timestamps = sensorData.map(data => data.timestamp);
+    let temperatures = sensorData.map(data => data.temp);
+    // Map other sensor values...
+
+    const htmlContent = `
+        <html>
+            <head>
+                <script src="${plotlySrc}"></script>
+            </head>
+            <body>
+                <div id="plot"></div>
+                <script>
+                    var data = [{
+                        x: ${JSON.stringify(timestamps)},
+                        y: ${JSON.stringify(temperatures)},
+                        type: 'scatter',
+                        name: 'Temperature'
+                    }];
+                    // Include other data series as needed
+                    Plotly.newPlot('plot', data);
+                </script>
+            </body>
+        </html>
+    `;
+
+    res.send(htmlContent);
+});
+
+app.listen(port, () => console.log(`Server listening on port ${port}! Access the plot at http://localhost:${port}`));
 
