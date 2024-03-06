@@ -25,12 +25,8 @@ Notes:
     * The Awair server stops returning data if you make too many fetch requests in 1 
       minute. Therefore, this file waits 1 minute after collecting 10 hours' worth of data.
 */
-
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
-const app = express();
-const port = 3000;
 
 
 const FROM = new Date('19 February 2024 14:00');
@@ -210,8 +206,8 @@ function getNextData() {
 }
 getNextData()
 
-// Directory containing your CSV files
-const csvDirectory = './data'; // Update this to the path where your CSVs are stored
+
+const csvDirectory = "C:/Users/q1n/Downloads/Awair-main"; // Update this to the path where your CSVs are stored
 
 function findLatestCsvFile(dirPath) {
     const files = fs.readdirSync(dirPath)
@@ -238,58 +234,4 @@ function readCSVData(filePath) {
         }, {});
     });
     return result;
-}
-
-app.get('/', (req, res) => {
-    try {
-        const latestCsvFile = findLatestCsvFile(csvDirectory);
-        const sensorData = readCSVData(latestCsvFile);
-        const labels = sensorData.map(row => row.timestamp);
-        const datasets = Object.keys(sensorData[0]).filter(key => key !== 'timestamp').map((sensorType) => ({
-            label: sensorType,
-            data: sensorData.map(row => row[sensorType]),
-            fill: false,
-            // You can customize each sensor line's appearance here
-            borderColor: getRandomColor(), // This function needs to be defined to generate colors
-        }));
-
-        res.send(`
-            <html>
-            <head>
-                <title>Sensor Data Graph</title>
-                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-            </head>
-            <body>
-                <div style="width:75%;">
-                    <canvas id="sensorChart"></canvas>
-                </div>
-                <script>
-                    const ctx = document.getElementById('sensorChart').getContext('2d');
-                    const chart = new Chart(ctx, {
-                        type: 'line',
-                        data: {
-                            labels: ${JSON.stringify(labels)},
-                            datasets: ${JSON.stringify(datasets)}
-                        },
-                        options: {}
-                    });
-                </script>
-            </body>
-            </html>
-        `);
-    } catch (error) {
-        console.error('Error serving the graph:', error);
-        res.send("Error generating the graph. Check the server logs for more information.");
-    }
-});
-
-app.listen(port, () => console.log(`Server running at http://localhost:${port}`));
-
-function getRandomColor() {
-    const letters = '0123456789ABCDEF';
-    let color = '#';
-    for (let i = 0; i < 6; i++) {
-        color += letters[Math.floor(Math.random() * 16)];
-    }
-    return color;
 }
