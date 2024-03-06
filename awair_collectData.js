@@ -25,8 +25,6 @@ Notes:
     * The Awair server stops returning data if you make too many fetch requests in 1 
       minute. Therefore, this file waits 1 minute after collecting 10 hours' worth of data.
 */
-const express = require('express');
-const path = require('path');
 
 
 const FROM = new Date('19 February 2024 14:00');
@@ -37,7 +35,7 @@ const DEVICE_ID = "28563";
 const API_KEY = "UfwaYhhnQJDJ1GoX37GHDy6CmPstQGyl";
 const ORG_ID = "10994";
 
-//const https = require('follow-redirects').https;
+const https = require('follow-redirects').https;
 const fs = require('fs');
 csvRows = [];
 var indexFromTen = 1;
@@ -207,31 +205,3 @@ function getNextData() {
 getNextData()
 
 
-const csvDirectory = "C:/Users/q1n/Downloads/Awair-main"; // Update this to the path where your CSVs are stored
-
-function findLatestCsvFile(dirPath) {
-    const files = fs.readdirSync(dirPath)
-        .filter(file => file.endsWith('.csv'))
-        .map(file => ({ file, mtime: fs.statSync(path.join(dirPath, file)).mtime }))
-        .sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
-
-    if (files.length === 0) {
-        throw new Error('No CSV files found.');
-    }
-
-    return path.join(dirPath, files[0].file);
-}
-
-function readCSVData(filePath) {
-    const csvData = fs.readFileSync(filePath, 'utf-8');
-    const lines = csvData.split('\n').filter(line => line);
-    const headers = lines[0].split(',');
-    const result = lines.slice(1).map(line => {
-        const values = line.split(',');
-        return headers.reduce((acc, header, index) => {
-            acc[header.trim()] = values[index].trim();
-            return acc;
-        }, {});
-    });
-    return result;
-}
