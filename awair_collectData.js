@@ -1,94 +1,82 @@
-const express = require('express');
-const fetch = require('node-fetch');
+// Import necessary modules
 const fs = require('fs');
-const { createObjectCsvWriter } = require('csv-writer');
+const fetch = require('node-fetch'); // Ensure you have 'node-fetch' installed: npm install node-fetch
+const express = require('express');
+const plotly = require('plotly')('username', 'apiKey'); // You need to replace 'username' and 'apiKey' with your Plotly credentials
+
+// Configuration
+const DEVICE_ID = "28563";
+const API_KEY = "your_api_key_here";
+const ORG_ID = "10994";
+const FROM = new Date('2024-02-19T14:00:00Z');
+const TO = new Date('2024-02-19T15:00:00Z');
+const LIMIT = 120; // Adjust based on your requirements
+
+// Set up Express
 const app = express();
 const port = 3000;
 
-// API and device configuration
-const FROM = new Date('19 February 2024 14:00');
-const TO = new Date('19 February 2024 15:00');
-const LIMIT = 120;
-const DEVICE_ID = "28563";
-const API_KEY = "UfwaYhhnQJDJ1GoX37GHDy6CmPstQGyl";
-const ORG_ID = "10994";
-let sensorData = []; // Array to store sensor data for plotting
-
-// CSV setup
-const csvWriter = createObjectCsvWriter({
-    path: 'sensor_data.csv',
-    header: [
-        {id: 'timestamp', title: 'TIMESTAMP'},
-        {id: 'lux', title: 'LUX'},
-        // Add all other sensor headers here
-    ],
-    append: true, // Append data if file exists
+app.get('/', async (req, res) => {
+    try {
+        const sensorData = await fetchSensorData();
+        const plotUrl = await generatePlot(sensorData);
+        res.redirect(plotUrl);
+    } catch (error) {
+        console.error('Error generating plot:', error);
+        res.send("Error generating plot. Check the server logs for more information.");
+    }
 });
 
-// Function to fetch and parse data
-async function fetchData() {
+async function fetchSensorData() {
     const url = `https://developer-apis.awair.is/v1/orgs/${ORG_ID}/devices/awair-omni/${DEVICE_ID}/air-data/raw?from=${FROM.toISOString()}&to=${TO.toISOString()}&limit=${LIMIT}&desc=false&fahrenheit=false`;
-    const requestOptions = {
+    const options = {
         method: 'GET',
-        headers: { "Authorization": `Bearer ${API_KEY}` },
+        headers: {
+            'Authorization': `Bearer ${API_KEY}`,
+            'Content-Type': 'application/json'
+        }
     };
 
-    try {
-        const response = await fetch(url, requestOptions);
-        const data = await response.json();
-        processSensorData(data);
-    } catch (error) {
-        console.error('Fetch Error:', error);
+    const response = await fetch(url, options);
+    if (!response.ok) {
+        throw new Error(`Error fetching data: ${response.statusText}`);
     }
+
+    const data = await response.json();
+    return data.data; // Assuming 'data.data' contains the array of sensor readings
 }
 
-// Process and store the fetched data
-function processSensorData(data) {
-    data.data.forEach(entry => {
-        const { timestamp, sensors } = entry;
-        const sensorValues = { timestamp };
-        sensors.forEach(sensor => {
-            sensorValues[sensor.comp] = sensor.value;
+async function generatePlot(sensorData) {
+    // Transform sensorData into the format expected by Plotly
+    const timestamps = sensorData.map(entry => entry.timestamp);
+    const values = sensorData.map(entry => entry.value); // Adjust this line based on how your data structure is formed
+
+    const trace1 = {
+        x: timestamps,
+        y: values,
+        type: "scatter"
+    };
+
+    const figure = { 'data': [trace1] };
+
+    const imgOpts = {
+        format: 'png',
+        width: 1000,
+        height: 500
+    };
+
+    return new Promise((resolve, reject) => {
+        plotly.getImage(figure, imgOpts, function (error, imageStream) {
+            if (error) return reject(error);
+
+            const fileName = "plot.png";
+            const fileStream = fs.createWriteStream(fileName);
+            imageStream.pipe(fileStream);
+            resolve(`/plots/${fileName}`); // Adjust serving path as necessary
         });
-        sensorData.push(sensorValues);
     });
-    // Save the fetched data to a CSV file
-    csvWriter
-        .writeRecords(sensorData)
-        .then(() => console.log('Data was added to the CSV file successfully.'));
 }
 
-// Serve a web page with the Plotly graph
-app.get('/', (req, res) => {
-    // Assuming data fetching is done and sensorData is populated
-    fetchData().then(() => {
-        const timestamps = sensorData.map(data => data.timestamp);
-        const temperatures = sensorData.map(data => data.temp);
-        // Map other sensor values as needed
-
-        const plotlySrc = 'https://cdn.plot.ly/plotly-latest.min.js';
-        const htmlContent = `
-            <html>
-                <head>
-                    <script src="${plotlySrc}"></script>
-                </head>
-                <body>
-                    <div id="plot"></div>
-                    <script>
-                        var data = [{
-                            x: ${JSON.stringify(timestamps)},
-                            y: ${JSON.stringify(temperatures)},
-                            type: 'scatter',
-                            name: 'Temperature'
-                        }];
-                        // Include other data series as needed
-                        Plotly.newPlot('plot', data);
-                    </script>
-                </body>
-            </html>
-        `;
-        res.send(htmlContent);
-    });
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}/`);
 });
-
-app.listen(port, () => console.log(`Server listening on port ${port}! Access the plot at http://localhost:${port}`));
